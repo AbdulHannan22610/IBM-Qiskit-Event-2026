@@ -1,0 +1,48 @@
+const sessions = [
+  { time: '09:30', end: '10:00', title: 'Doors open & coffee', type: 'connect', tag: 'Welcome', description: 'Grab a coffee, find your people, and get settled for a day of quantum.' },
+  { time: '10:00', end: '10:30', title: 'Opening: a decade of quantum on the cloud', type: 'talk', tag: 'Talk', description: 'A shared starting point for the ideas, tools, and questions shaping the next decade.' },
+  { time: '10:45', end: '12:00', title: 'Quantum computing, without the fog', type: 'talk', tag: 'Primer', description: 'A beginner-friendly tour from qubits and circuits to the problems quantum might change.' },
+  { time: '13:00', end: '14:30', title: 'Build your first Qiskit circuit', type: 'workshop', tag: 'Workshop', description: 'Open a notebook, write some code, and run a circuit on a real quantum system.' },
+  { time: '14:45', end: '16:00', title: 'The quantum challenge', type: 'workshop', tag: 'Challenge', description: 'A collaborative problem-solving session for teams who like to learn by doing.' },
+  { time: '16:15', end: '17:00', title: 'What comes next?', type: 'connect', tag: 'Community', description: 'A closing conversation, project share-out, and a chance to find your next quantum rabbit hole.' }
+];
+const scheduleList = document.querySelector('#scheduleList');
+const filterButtons = document.querySelectorAll('[data-filter]');
+function renderSchedule(filter = 'all') { scheduleList.innerHTML = sessions.filter((session) => filter === 'all' || session.type === filter).map((session, index) => `<article class="schedule-row ${index === 1 ? 'highlight-row' : ''}"><div class="schedule-time"><strong>${session.time}</strong><span>${session.end}</span></div><div class="schedule-info"><span class="session-tag tag-${session.type}">${session.tag}</span><h3>${session.title}</h3><p>${session.description}</p></div><span class="schedule-arrow">↗</span></article>`).join(''); }
+renderSchedule();
+filterButtons.forEach((button) => button.addEventListener('click', () => { filterButtons.forEach((item) => item.classList.remove('active')); button.classList.add('active'); renderSchedule(button.dataset.filter); }));
+const mobileMenu = document.querySelector('#mobileMenu');
+const nav = document.querySelector('#mainNav');
+mobileMenu.addEventListener('click', () => { nav.classList.toggle('is-open'); mobileMenu.querySelector('span').textContent = nav.classList.contains('is-open') ? '×' : '+'; });
+nav.querySelectorAll('a').forEach((link) => link.addEventListener('click', () => nav.classList.remove('is-open')));
+const API_BASE = window.API_BASE_URL || 'http://localhost:4000/api';
+const accountTrigger = document.querySelector('#accountTrigger');
+const accountOverlay = document.querySelector('#accountOverlay');
+const accountClose = document.querySelector('#accountClose');
+const authView = document.querySelector('#authView');
+const accountView = document.querySelector('#accountView');
+const authForm = document.querySelector('#authForm');
+const authMessage = document.querySelector('#authMessage');
+const nameField = document.querySelector('#nameField');
+const accountTitle = document.querySelector('#accountTitle');
+const authSubmit = document.querySelector('#authSubmit');
+const authModes = document.querySelectorAll('[data-auth-mode]');
+let authMode = 'login';
+function setAuthMode(mode) { authMode = mode; authModes.forEach((button) => button.classList.toggle('active', button.dataset.authMode === mode)); const signup = mode === 'signup'; nameField.hidden = !signup; nameField.querySelector('input').required = signup; accountTitle.innerHTML = signup ? 'Join the<br /><em>community.</em>' : 'Welcome<br /><em>back.</em>'; authSubmit.innerHTML = signup ? 'Create account <span>↗</span>' : 'Log in <span>↗</span>'; authMessage.textContent = ''; }
+function showAccountPanel() { accountOverlay.hidden = false; document.body.classList.add('account-open'); if (localStorage.getItem('qiskitToken')) loadCurrentUser(); }
+function closeAccountPanel() { accountOverlay.hidden = true; document.body.classList.remove('account-open'); }
+function authHeaders() { return { Authorization: `Bearer ${localStorage.getItem('qiskitToken')}` }; }
+function showAuthError(message) { authMessage.textContent = message; }
+function escapeHtml(value) { return String(value).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[character]); }
+async function loadCurrentUser() { try { const response = await fetch(`${API_BASE}/auth/me`, { headers: authHeaders() }); if (!response.ok) throw new Error('Session expired.'); const { user } = await response.json(); authView.hidden = true; accountView.hidden = false; accountTrigger.innerHTML = `${user.role === 'admin' ? 'Admin' : 'Account'} <span>↗</span>`; document.querySelector('#accountRoleLabel').textContent = user.role === 'admin' ? 'ADMIN CONSOLE' : 'MEMBER ACCESS'; document.querySelector('#accountGreeting').innerHTML = 'Hello,<br /><em></em>'; document.querySelector('#accountGreeting em').textContent = `${user.name.split(' ')[0]}.`; document.querySelector('#accountStatus').textContent = user.role === 'admin' ? 'You have administrator access.' : 'Your account is ready for event updates and submissions.'; const data = document.querySelector('#accountData'); if (user.role === 'admin') await loadAdminData(data); else { const submissionsResponse = await fetch(`${API_BASE}/submissions/me`, { headers: authHeaders() }); const submissions = submissionsResponse.ok ? (await submissionsResponse.json()).submissions : []; data.innerHTML = `<span class="mono">${user.email}</span><strong>${submissions.length} submission${submissions.length === 1 ? '' : 's'}</strong><small>Your data is private to your account.</small>`; } } catch { localStorage.removeItem('qiskitToken'); authView.hidden = false; accountView.hidden = true; accountTrigger.innerHTML = 'Log in <span>↗</span>'; } }
+async function loadAdminData(container) { const [usersResponse, submissionsResponse] = await Promise.all([fetch(`${API_BASE}/admin/users`, { headers: authHeaders() }), fetch(`${API_BASE}/admin/submissions`, { headers: authHeaders() })]); if (!usersResponse.ok || !submissionsResponse.ok) throw new Error('Admin data unavailable.'); const users = (await usersResponse.json()).users; const submissions = (await submissionsResponse.json()).submissions; container.innerHTML = `<div class="admin-stat"><strong>${users.length}</strong><small>USERS</small></div><div class="admin-stat"><strong>${submissions.length}</strong><small>SUBMISSIONS</small></div><div class="admin-items"><b>Recent interest</b>${submissions.slice(0, 4).map((item) => `<span>${escapeHtml(item.email)}<small>${escapeHtml(item.status)}</small></span>`).join('') || '<small>No submissions yet.</small>'}</div>`; }
+accountTrigger.addEventListener('click', showAccountPanel); accountClose.addEventListener('click', closeAccountPanel); accountOverlay.addEventListener('click', (event) => { if (event.target === accountOverlay) closeAccountPanel(); }); authModes.forEach((button) => button.addEventListener('click', () => setAuthMode(button.dataset.authMode)));
+document.querySelector('#logoutButton').addEventListener('click', () => { localStorage.removeItem('qiskitToken'); authView.hidden = false; accountView.hidden = true; accountTrigger.innerHTML = 'Log in <span>↗</span>'; setAuthMode('login'); });
+authForm.addEventListener('submit', async (event) => { event.preventDefault(); const payload = Object.fromEntries(new FormData(authForm)); const endpoint = authMode === 'signup' ? 'signup' : 'login'; authSubmit.disabled = true; try { const response = await fetch(`${API_BASE}/auth/${endpoint}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Authentication failed.'); localStorage.setItem('qiskitToken', result.token); authForm.reset(); await loadCurrentUser(); } catch (error) { showAuthError(error.message); } finally { authSubmit.disabled = false; } });
+setAuthMode('login');
+const form = document.querySelector('#interestForm'); const formMessage = document.querySelector('#formMessage');
+form.addEventListener('submit', async (event) => { event.preventDefault(); const email = new FormData(form).get('email'); const button = form.querySelector('button'); button.disabled = true; try { const response = await fetch(`${API_BASE}/interest`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) }); if (!response.ok) throw new Error('Unable to subscribe'); formMessage.textContent = `You're on the list, ${email}. We'll be in touch.`; form.reset(); } catch { formMessage.textContent = 'We could not save that just now. Please try again.'; } finally { button.disabled = false; } });
+function updateCountdown() { const target = new Date('2026-10-01T09:00:00'); const diff = Math.max(target - new Date(), 0); document.querySelector('#days').textContent = String(Math.floor(diff / 86400000)).padStart(2, '0'); document.querySelector('#hours').textContent = String(Math.floor((diff / 3600000) % 24)).padStart(2, '0'); document.querySelector('#minutes').textContent = String(Math.floor((diff / 60000) % 60)).padStart(2, '0'); }
+updateCountdown(); setInterval(updateCountdown, 60000);
+const revealObserver = new IntersectionObserver((entries) => entries.forEach((entry) => { if (entry.isIntersecting) entry.target.classList.add('visible'); }), { threshold: 0.14 });
+document.querySelectorAll('.reveal, .principles > div, .experience-card, .speaker-placeholder').forEach((element) => revealObserver.observe(element));

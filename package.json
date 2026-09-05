@@ -1,0 +1,9 @@
+{
+  "name": "qiskit-fall-fest-2026",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "npx serve .",
+    "start": "npx serve ."
+  }
+}
