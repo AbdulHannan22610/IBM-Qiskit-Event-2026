@@ -13,8 +13,12 @@ const jwtSecret = process.env.JWT_SECRET;
 if (!jwtSecret || jwtSecret.length < 32) throw new Error('JWT_SECRET must be at least 32 characters long.');
 
 const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:4173').split(',').map((value) => value.trim()).filter(Boolean);
+const isLocalOrigin = (origin) => /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
 app.use(helmet());
-app.use(cors({ origin: allowedOrigins, credentials: false }));
+app.use(cors({
+  origin: (origin, callback) => callback(null, !origin || allowedOrigins.includes(origin) || isLocalOrigin(origin)),
+  credentials: false,
+}));
 app.use(express.json({ limit: '20kb' }));
 app.use('/api/auth', rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: true, legacyHeaders: false }));
 
@@ -59,9 +63,11 @@ app.post('/api/auth/signup', async (req, res) => {
     const passwordHash = await bcrypt.hash(password, 12);
     const result = db.prepare('INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)').run(name, email, passwordHash);
     const user = db.prepare('SELECT id, name, email, role, created_at FROM users WHERE id = ?').get(result.lastInsertRowid);
+    const registrationPayload = JSON.stringify({ type: 'account_registration', userId: user.id, name: user.name, email: user.email, createdAt: user.created_at });
+    db.prepare('INSERT INTO submissions (user_id, email, kind, payload) VALUES (?, ?, ?, ?)').run(user.id, user.email, 'account_registration', registrationPayload);
     res.status(201).json({ user: publicUser(user), token: issueToken(user) });
   } catch (error) {
-    if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') return res.status(409).json({ error: 'An account with that email already exists.' });
+    if (error.message?.includes('UNIQUE constraint failed')) return res.status(409).json({ error: 'An account with that email already exists.' });
     res.status(500).json({ error: 'Could not create account.' });
   }
 });
