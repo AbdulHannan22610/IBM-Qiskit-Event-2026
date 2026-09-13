@@ -30,7 +30,7 @@ const mobileMenu = document.querySelector('#mobileMenu');
 const nav = document.querySelector('#mainNav');
 mobileMenu.addEventListener('click', () => { nav.classList.toggle('is-open'); mobileMenu.querySelector('span').textContent = nav.classList.contains('is-open') ? '×' : '+'; });
 nav.querySelectorAll('a').forEach((link) => link.addEventListener('click', () => nav.classList.remove('is-open')));
-const API_BASE = window.API_BASE_URL || 'http://localhost:4000/api';
+const API_BASE = window.API_BASE_URL || 'https://ibm-qiskit-event-2026-production.up.railway.app/api';
 const accountTrigger = document.querySelector('#accountTrigger');
 const accountOverlay = document.querySelector('#accountOverlay');
 const accountClose = document.querySelector('#accountClose');
