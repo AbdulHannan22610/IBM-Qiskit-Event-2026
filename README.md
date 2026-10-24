@@ -61,7 +61,7 @@ The repository does not reveal the live Railway database path or prove that its 
 
 1. Import the repository into Vercel with the project root set to this folder.
 2. Set the output to the project root (the site is static; no build command is needed).
-3. Once the Render API is deployed, set `window.API_BASE_URL` in `api-config.js` to `https://your-render-service.onrender.com/api`, then deploy the frontend.
+3. `api-config.js` selects `https://ibm-qiskit-event-2026.onrender.com/api` for deployed sites and `http://localhost:4000/api` for local development. Redeploy the frontend after changing this configuration.
 4. Set the exact Vercel origin in Render's `FRONTEND_URL` and redeploy the API if it changes.
 
 Keep the current Railway deployment and its data available as a rollback until registration, login, authenticated requests, database reads/writes, and CORS have all been checked against Render. After cutover, monitor both services before deciding when to stop the old service; do not delete its database or volume as part of the initial migration.
