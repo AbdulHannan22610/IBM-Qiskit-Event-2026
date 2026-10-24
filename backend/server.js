@@ -68,16 +68,22 @@ app.post('/api/auth/signup', async (req, res) => {
     res.status(201).json({ user: publicUser(user), token: issueToken(user) });
   } catch (error) {
     if (error.message?.includes('UNIQUE constraint failed')) return res.status(409).json({ error: 'An account with that email already exists.' });
+    console.error('Signup request failed.', { errorName: error instanceof Error ? error.name : 'UnknownError' });
     res.status(500).json({ error: 'Could not create account.' });
   }
 });
 
 app.post('/api/auth/login', async (req, res) => {
-  const email = cleanEmail(req.body?.email);
-  const password = req.body?.password;
-  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
-  if (!user || typeof password !== 'string' || !(await bcrypt.compare(password, user.password_hash))) return res.status(401).json({ error: 'Invalid email or password.' });
-  res.json({ user: publicUser(user), token: issueToken(user) });
+  try {
+    const email = cleanEmail(req.body?.email);
+    const password = req.body?.password;
+    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+    if (!user || typeof password !== 'string' || !(await bcrypt.compare(password, user.password_hash))) return res.status(401).json({ error: 'Invalid email or password.' });
+    res.json({ user: publicUser(user), token: issueToken(user) });
+  } catch (error) {
+    console.error('Login request failed.', { errorName: error instanceof Error ? error.name : 'UnknownError' });
+    res.status(500).json({ error: 'Could not log in.' });
+  }
 });
 
 app.post('/api/auth/logout', auth(), (_req, res) => res.status(204).end());
