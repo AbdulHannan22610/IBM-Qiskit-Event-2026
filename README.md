@@ -24,7 +24,7 @@ Open `http://localhost:4173`. The frontend reads its API URL from `api-config.js
 
 ## Backend
 
-The backend is a small Express API using Node's built-in SQLite driver. SQLite keeps local development free and simple; on Railway, attach a persistent volume and set `DATABASE_PATH=/data/qiskit-fall-fest.sqlite` so data survives deployments. Passwords are hashed with bcrypt and auth uses short-lived JWT bearer tokens. No paid services are required. The backend requires Node 22.5+.
+The backend is a small Express API using Node's built-in SQLite driver. Passwords are hashed with bcrypt and auth uses short-lived JWT bearer tokens. The backend requires Node 22.5+. SQLite data must live on persistent storage in production; do not run the Render service without a persistent disk, because deploys or instance replacement can lose its local database.
 
 ### API endpoints
 
@@ -41,19 +41,30 @@ Admin access is created on startup from `ADMIN_EMAIL` and `ADMIN_PASSWORD`. Admi
 
 ## Deployment
 
-### Railway API
+### Render API
 
-1. Create a Railway service from this repository and set the service root directory to `backend` (or configure the start command as `cd backend && npm start`).
-2. Add a Railway volume mounted at `/data`.
-3. Add variables: `PORT` (Railway provides this), `DATABASE_PATH=/data/qiskit-fall-fest.sqlite`, a random `JWT_SECRET` of 32+ characters, `FRONTEND_URL=https://your-vercel-domain.vercel.app`, `ADMIN_EMAIL`, and a strong `ADMIN_PASSWORD`.
-4. Deploy and copy the generated Railway public URL.
+The API can be deployed as a Render **Web Service** from this repository with root directory `backend`, build command `npm ci`, and start command `npm start`. The backend uses Render's assigned `PORT` and already exposes `GET /api/health`.
+
+**Storage is a deployment prerequisite:** this service uses SQLite, so attach a persistent disk mounted at `/var/data` and set `DATABASE_PATH=/var/data/qiskit-fall-fest.sqlite`. Render persistent disks require a paid instance. Do not deploy the API without persistent storage or point it at an unverified local database. No `render.yaml` is included while persistent storage is deferred, to avoid a configuration that appears deployable but risks losing registrations. Render's free web services spin down after 15 minutes without inbound traffic and can take about a minute to wake; their filesystems are ephemeral. A paid instance avoids this free-tier sleep behavior, but does not guarantee 100% uptime.
+
+Set these variables in the Render service's Environment dashboard (never commit real values):
+
+- `DATABASE_PATH=/var/data/qiskit-fall-fest.sqlite`
+- `JWT_SECRET`: a new or intentionally preserved random secret of at least 32 characters; changing it invalidates existing tokens.
+- `FRONTEND_URL`: the exact deployed frontend origin, such as `https://your-site.vercel.app` (no path); comma-separate additional allowed origins.
+- `ADMIN_EMAIL` and `ADMIN_PASSWORD`: the existing admin identity/strong password. The API ensures the configured admin account on startup; use the existing credentials when preserving the same database.
+- `PORT` is assigned by Render; do not set a fixed production value.
+
+The repository does not reveal the live Railway database path or prove that its production data matches the existing local SQLite file. Before cutover, identify and back up the actual Railway database, then copy/restore that database to the Render disk while the API is stopped. Verify its users and submissions and test login against the restored copy before sending traffic to Render. Do not remove Railway's volume/service or change its data until the Render copy and application behavior have been verified. SQLite WAL databases must be backed up consistently (use SQLite's backup mechanism or stop writes and checkpoint/close the database first); copying only the main `.sqlite` file while writes are active may omit committed data.
 
 ### Vercel frontend
 
 1. Import the repository into Vercel with the project root set to this folder.
 2. Set the output to the project root (the site is static; no build command is needed).
-3. Before deploying, edit `api-config.js` and set `window.API_BASE_URL` to `https://your-railway-domain/api`. This is the only frontend integration setting.
-4. Put the final Vercel URL into Railway's `FRONTEND_URL` variable and redeploy the API.
+3. Once the Render API is deployed, set `window.API_BASE_URL` in `api-config.js` to `https://your-render-service.onrender.com/api`, then deploy the frontend.
+4. Set the exact Vercel origin in Render's `FRONTEND_URL` and redeploy the API if it changes.
+
+Keep the current Railway deployment and its data available as a rollback until registration, login, authenticated requests, database reads/writes, and CORS have all been checked against Render. After cutover, monitor both services before deciding when to stop the old service; do not delete its database or volume as part of the initial migration.
 
 Never commit `.env`, database files, passwords, or JWT secrets.
 

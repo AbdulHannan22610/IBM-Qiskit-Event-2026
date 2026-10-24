@@ -2,3 +2,8 @@ backend/.env
 backend/data/
 backend/node_modules/
 node_modules/
+.env
+.env.*
+!.env.example
+*.sqlite
+*.sqlite-*
